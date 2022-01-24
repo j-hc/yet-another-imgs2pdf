@@ -8,7 +8,7 @@ use std::process::exit;
 use printpdf::{image_crate, Image, Mm, PdfDocument};
 use printpdf::{ImageTransform, PdfDocumentReference};
 
-use clap::{App, Arg, ValueHint};
+use clap::{App, Arg, ValueHint, ArgGroup};
 
 const INCH_PER_MM: f64 = 25.4;
 
@@ -60,10 +60,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .arg(
             Arg::new("dir")
                 .help("Directory to folder of images")
-                .required(true)
                 .multiple_occurrences(false)
                 .multiple_values(false)
-                .conflicts_with("imgs")
                 .value_hint(ValueHint::DirPath)
                 .long("dir")
                 .short('d'),
@@ -110,6 +108,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .default_value("")
                 .long("pdf-title")
                 .short('t'),
+        )
+        .group(
+            ArgGroup::new("input")
+                .args(&["imgs", "dir"])
+                .multiple(false)
+                .required(true)
         )
         .get_matches();
 
@@ -165,6 +169,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     p.save(&mut File::create(&out_path)?)?;
 
-    println!("Created the PDF successfully `{}`", out_path.display());
+    println!("Successfully created the PDF `{}`", out_path.display());
     Ok(())
 }

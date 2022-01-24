@@ -6,20 +6,18 @@ Converts and merges multiple images into a single PDF. Customizable
 ```
 yet-another-imgs2pdf 0.1.0
 scrubjay55
-Merge multiple images into a single pdf
-
 USAGE:
-    imgs2pdf.exe [OPTIONS] --dir <dir> --out <out>
+    yet-another-imgs2pdf.exe [OPTIONS] --out <out> <--imgs <imgs>...|--dir <dir>>
 
 OPTIONS:
-    -d, --dir <dir>
+    -d, --dir <dir>                      Directory to folder of images
         --dpi <dpi>                      [default: 100.0]
     -h, --scale-height <scale-height>    [default: 1280]
         --help                           Print help information
-    -i, --imgs <imgs>...
+    -i, --imgs <imgs>...                 Paths to multiple images seperated with a whitespace
     -o, --out <out>
     -s, --auto-sort
-    -t, --pdf-title <pdf-title>          [default: ]
+    -t, --pdf-title <pdf-title>
     -V, --version                        Print version information
     -w, --scale-width <scale-width>      [default: 720]
 ```
