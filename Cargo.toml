@@ -1,0 +1,14 @@
+[package]
+name = "yet-another-imgs2pdf"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+printpdf = { version = "0.5", features = ["embedded_images"] }
+clap = { version = "3", features = ["std"], default-features = false }
+
+
+[profile.release]
+lto = true
+codegen-units = 1
