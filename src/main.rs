@@ -1,14 +1,17 @@
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Write};
-use std::path::PathBuf;
+use std::io::{stdout, BufWriter, Write};
+use std::path::{Path, PathBuf};
 use std::process::exit;
 
-use printpdf::{image_crate, Image, Mm, PdfDocument};
+use printpdf::{
+    image_crate::{self, GenericImageView},
+    Image, Mm, PdfDocument,
+};
 use printpdf::{ImageTransform, PdfDocumentReference};
 
-use clap::{App, Arg, ValueHint, ArgGroup};
+use clap::{App, Arg, ArgGroup, ValueHint};
 
 const INCH_PER_MM: f64 = 25.4;
 
@@ -22,22 +25,26 @@ impl PDFMerger {
         }
     }
 
-    fn append_image_page<T: Read>(
+    fn append_image_page(
         &self,
-        image: &mut BufReader<T>,
+        image: &Path,
         dpi: f64,
         layer_name: &str,
-        wh: (u16, u16),
+        wh: (u32, u32),
     ) -> image_crate::ImageResult<()> {
-        let mut img = image_crate::jpeg::JpegDecoder::new(image)?;
-        let scaled_szs = img.scale(wh.0, wh.1)?;
-        let page_w = Mm((scaled_szs.0 as f64 * INCH_PER_MM) / dpi);
-        let page_h = Mm((scaled_szs.1 as f64 * INCH_PER_MM) / dpi);
+        let img = image_crate::open(image)?.resize(
+            wh.0,
+            wh.1,
+            image_crate::imageops::FilterType::Nearest,
+        );
+        let (w, h) = img.dimensions();
+        let page_w = Mm((w as f64 * INCH_PER_MM) / dpi);
+        let page_h = Mm((h as f64 * INCH_PER_MM) / dpi);
 
         let (page_i, layer_i) = self.pdf.add_page(page_w, page_h, layer_name);
         let layer = self.pdf.get_page(page_i).get_layer(layer_i);
 
-        Image::try_from(img)?.add_to_layer(
+        Image::from_dynamic_image(&img).add_to_layer(
             layer,
             ImageTransform {
                 dpi: Some(dpi),
@@ -81,7 +88,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .long("out")
                 .short('o'),
         )
-        .arg(Arg::new("dpi").default_value("100.0").long("dpi"))
+        .arg(Arg::new("dpi").default_value("96.0").long("dpi"))
         .arg(
             Arg::new("scale-width")
                 .default_value("")
@@ -113,7 +120,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             ArgGroup::new("input")
                 .args(&["imgs", "dir"])
                 .multiple(false)
-                .required(true)
+                .required(true),
         )
         .get_matches();
 
@@ -124,17 +131,17 @@ fn main() -> Result<(), Box<dyn Error>> {
             exit(1)
         }
     };
-    let width = match matches.value_of("scale-width").unwrap().parse::<u16>() {
+    let width = match matches.value_of("scale-width").unwrap().parse::<u32>() {
         Ok(w) => w,
         Err(_) => {
-            eprintln!("Value <scale-width> could not be parsed as an unsigned integer");
+            eprintln!("Value <scale-width> could not be parsed as an int");
             exit(1)
         }
     };
-    let height = match matches.value_of("scale-height").unwrap().parse::<u16>() {
+    let height = match matches.value_of("scale-height").unwrap().parse::<u32>() {
         Ok(h) => h,
         Err(_) => {
-            eprintln!("Value <scale-height> could not be parsed as an unsigned integer");
+            eprintln!("Value <scale-height> could not be parsed as an int");
             exit(1)
         }
     };
@@ -142,7 +149,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     if out_path.extension() != Some(OsStr::new("pdf")) {
         out_path.set_extension("pdf");
     }
-
     let p = PDFMerger::new(matches.value_of("pdf-title").unwrap());
     let mut imgs_iter = if let Some(imgs) = matches.values_of("imgs") {
         imgs.map(PathBuf::from).collect::<Vec<PathBuf>>()
@@ -163,12 +169,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         imgs_iter.sort();
     }
 
-    for n in imgs_iter {
-        let mut image_file = BufReader::new(File::open(n)?);
-        p.append_image_page(&mut image_file, dpi, "", (width, height))?;
+    let tic = std::time::Instant::now();
+    let imgs_len = imgs_iter.len();
+    for (i, n) in imgs_iter.iter().enumerate() {
+        if let Err(e) = p.append_image_page(n, dpi, "", (width, height)) {
+            println!("Skipping `{}` because: {}", n.display(), e);
+        }
+        print!("Processing image {}/{}\r", i, imgs_len);
+        stdout().flush().unwrap();
     }
     p.save(&mut File::create(&out_path)?)?;
 
-    println!("Successfully created the PDF `{}`", out_path.display());
+    println!(
+        "Successfully created the PDF `{}` in {:.2}s",
+        out_path.display(),
+        tic.elapsed().as_secs_f32()
+    );
     Ok(())
 }
