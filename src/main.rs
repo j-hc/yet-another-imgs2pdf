@@ -1,17 +1,14 @@
-use std::error::Error;
-use std::ffi::OsStr;
-use std::fs::File;
-use std::io::{stdout, BufWriter, Write};
-use std::path::{Path, PathBuf};
-use std::process::exit;
-
+use clap::{Arg, ArgGroup, Command, ValueHint};
 use printpdf::{
     image_crate::{self, GenericImageView},
     Image, Mm, PdfDocument,
 };
 use printpdf::{ImageTransform, PdfDocumentReference};
-
-use clap::{App, Arg, ArgGroup, ValueHint};
+use std::error::Error;
+use std::fs::File;
+use std::io::{stdout, BufWriter, Write};
+use std::path::{Path, PathBuf};
+use std::process::exit;
 
 const INCH_PER_MM: f64 = 25.4;
 
@@ -35,7 +32,7 @@ impl PDFMerger {
         let img = image_crate::open(image)?.resize(
             wh.0,
             wh.1,
-            image_crate::imageops::FilterType::Nearest,
+            image_crate::imageops::FilterType::Lanczos3,
         );
         let (w, h) = img.dimensions();
         let page_w = Mm((w as f64 * INCH_PER_MM) / dpi);
@@ -60,7 +57,7 @@ impl PDFMerger {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let matches = App::new(env!("CARGO_PKG_NAME"))
+    let matches = Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .about("Merge multiple images into a single pdf")
         .author("scrubjay55")
@@ -88,20 +85,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .long("out")
                 .short('o'),
         )
-        .arg(Arg::new("dpi").default_value("96.0").long("dpi"))
+        .arg(Arg::new("dpi").default_value("100.0").long("dpi"))
         .arg(
             Arg::new("scale-width")
                 .default_value("")
                 .long("scale-width")
                 .short('w')
-                .default_value("720"),
+                .default_value("1080"),
         )
         .arg(
             Arg::new("scale-height")
                 .default_value("")
                 .long("scale-height")
                 .short('h')
-                .default_value("1280"),
+                .default_value("1920"),
         )
         .arg(
             Arg::new("auto-sort")
@@ -145,10 +142,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             exit(1)
         }
     };
+
     let mut out_path = PathBuf::from(matches.value_of("out").unwrap());
-    if out_path.extension() != Some(OsStr::new("pdf")) {
+    if out_path.extension().is_none() {
         out_path.set_extension("pdf");
     }
+
     let p = PDFMerger::new(matches.value_of("pdf-title").unwrap());
     let mut imgs_iter = if let Some(imgs) = matches.values_of("imgs") {
         imgs.map(PathBuf::from).collect::<Vec<PathBuf>>()
@@ -175,9 +174,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         if let Err(e) = p.append_image_page(n, dpi, "", (width, height)) {
             println!("Skipping `{}` because: {}", n.display(), e);
         }
-        print!("Processing image {}/{}\r", i, imgs_len);
+        print!("Processing image {}/{}\r", i + 1, imgs_len);
         stdout().flush().unwrap();
     }
+
     p.save(&mut File::create(&out_path)?)?;
 
     println!(
