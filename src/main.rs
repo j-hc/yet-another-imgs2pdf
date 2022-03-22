@@ -164,7 +164,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     } else {
         unreachable!();
     };
-    if matches.value_of("auto-sort").is_some() {
+    if matches.is_present("auto-sort") {
         imgs_iter.sort();
     }
 
